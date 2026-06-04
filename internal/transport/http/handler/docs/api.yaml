@@ -1,0 +1,603 @@
+openapi: 3.0.3
+
+info:
+title: Product Service API
+version: 1.0.0
+description: Product catalog and inventory batches service.
+
+servers:
+
+* url: /v1
+
+tags:
+
+* name: Products
+* name: Batches
+* name: Categories
+
+paths:
+
+/products:
+
+
+get:
+  tags:
+    - Products
+  summary: Get products list
+  parameters:
+
+    - name: category_id
+      in: query
+      schema:
+        type: string
+        format: uuid
+
+    - name: company_id
+      in: query
+      schema:
+        type: string
+        format: uuid
+
+    - name: min_price
+      in: query
+      schema:
+        type: number
+
+    - name: max_price
+      in: query
+      schema:
+        type: number
+
+    - name: in_stock
+      in: query
+      schema:
+        type: boolean
+
+    - name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+
+  responses:
+    '200':
+      description: Products list
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductListResponse'
+
+post:
+  tags:
+    - Products
+  summary: Create product
+  security:
+    - bearerAuth: []
+
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/CreateProductRequest'
+
+  responses:
+    '201':
+      description: Product created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductResponse'
+
+
+/products/{id}:
+
+
+get:
+  tags:
+    - Products
+  summary: Get product by id
+
+  parameters:
+    - $ref: '#/components/parameters/ProductId'
+
+  responses:
+    '200':
+      description: Product
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductResponse'
+
+patch:
+  tags:
+    - Products
+  summary: Update product
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/ProductId'
+
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/UpdateProductRequest'
+
+  responses:
+    '200':
+      description: Updated product
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductResponse'
+
+delete:
+  tags:
+    - Products
+  summary: Delete product
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/ProductId'
+
+  responses:
+    '204':
+      description: Product deleted
+
+
+/products/{id}/batches:
+
+
+get:
+  tags:
+    - Batches
+  summary: Get product batches
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/ProductId'
+
+  responses:
+    '200':
+      description: Product batches
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchListResponse'
+
+post:
+  tags:
+    - Batches
+  summary: Create batch
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/ProductId'
+
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/CreateBatchRequest'
+
+  responses:
+    '201':
+      description: Batch created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchResponse'
+
+
+/batches/{id}:
+
+
+get:
+  tags:
+    - Batches
+  summary: Get batch by id
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/BatchId'
+
+  responses:
+    '200':
+      description: Batch
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchResponse'
+
+patch:
+  tags:
+    - Batches
+  summary: Update batch
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/BatchId'
+
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/UpdateBatchRequest'
+
+  responses:
+    '200':
+      description: Updated batch
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchResponse'
+
+delete:
+  tags:
+    - Batches
+  summary: Delete batch
+  security:
+    - bearerAuth: []
+
+  parameters:
+    - $ref: '#/components/parameters/BatchId'
+
+  responses:
+    '204':
+      description: Batch deleted
+
+
+/categories:
+
+
+get:
+  tags:
+    - Categories
+  summary: Get categories
+
+  responses:
+    '200':
+      description: Categories list
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CategoryListResponse'
+
+post:
+  tags:
+    - Categories
+  summary: Create category
+  security:
+    - bearerAuth: []
+
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/CreateCategoryRequest'
+
+  responses:
+    '201':
+      description: Category created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CategoryResponse'
+
+/categories/{id}
+
+patch:
+  tags:
+    - Categories
+  summary: change name category
+  security:
+    - bearerAuth: []
+  
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref:
+
+  responses:
+    '200':
+      description: Category updated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CategoryResponse'
+
+delete:
+  tags: 
+    - Categories
+  summary: delete category
+  security:
+    - bearerAuth: []
+  
+  responses:
+    '204':
+      description: category deleted
+
+components:
+
+securitySchemes:
+
+
+bearerAuth:
+  type: http
+  scheme: bearer
+  bearerFormat: JWT
+
+
+parameters:
+
+
+ProductId:
+  name: id
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+BatchId:
+  name: id
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+CategoryId:
+  name: id
+  in: path
+  requred: true
+  schema:
+    type: string
+    format: uuid
+
+
+schemas:
+
+CreateProductRequest:
+  type: object
+  required:
+    - name
+    - price
+    - unit
+
+  properties:
+
+    name:
+      type: string
+
+    description:
+      type: string
+
+    price:
+      type: number
+
+    unit:
+      type: string
+
+    category_id:
+      type: string
+      format: uuid
+
+UpdateProductRequest:
+  type: object
+
+  properties:
+
+    name:
+      type: string
+
+    description:
+      type: string
+
+    price:
+      type: number
+
+    unit:
+      type: string
+
+    category_id:
+      type: string
+      format: uuid
+
+    is_active:
+      type: boolean
+
+ProductResponse:
+  type: object
+
+  properties:
+
+    id:
+      type: string
+      format: uuid
+
+    company_id:
+      type: string
+      format: uuid
+
+    category_id:
+      type: string
+      format: uuid
+
+    name:
+      type: string
+
+    description:
+      type: string
+
+    price:
+      type: number
+
+    unit:
+      type: string
+
+    available_quantity:
+      type: number
+
+    is_active:
+      type: boolean
+
+    created_at:
+      type: string
+      format: date-time
+
+    updated_at:
+      type: string
+      format: date-time
+
+ProductListResponse:
+  type: object
+
+  properties:
+
+    products:
+      type: array
+
+      items:
+        $ref: '#/components/schemas/ProductResponse'
+
+CreateBatchRequest:
+  type: object
+
+  required:
+    - quantity_total
+
+  properties:
+
+    warehouse_company_id:
+      type: string
+      format: uuid
+
+    quantity_total:
+      type: number
+
+    production_date:
+      type: string
+      format: date
+
+    expiration_date:
+      type: string
+      format: date
+
+    batch_number:
+      type: string
+
+UpdateBatchRequest:
+  type: object
+
+  properties:
+
+    quantity_reserved:
+      type: number
+
+    production_date:
+      type: string
+      format: date
+
+    expiration_date:
+      type: string
+      format: date
+
+    batch_number:
+      type: string
+
+BatchResponse:
+  type: object
+
+  properties:
+
+    id:
+      type: string
+      format: uuid
+
+    product_id:
+      type: string
+      format: uuid
+
+    warehouse_company_id:
+      type: string
+      format: uuid
+
+    quantity_total:
+      type: number
+
+    quantity_reserved:
+      type: number
+
+    available_quantity:
+      type: number
+      readOnly: true
+
+    batch_number:
+      type: string
+
+    production_date:
+      type: string
+      format: date
+
+    expiration_date:
+      type: string
+      format: date
+
+    created_at:
+      type: string
+      format: date-time
+
+CreateCategoryRequest:
+  type: object
+
+  required:
+    - name
+
+  properties:
+
+    name:
+      type: string
+
+CategoryResponse:
+  type: object
+
+  properties:
+
+    id:
+      type: string
+      format: uuid
+
+    name:
+      type: string
+
+CategoryListResponse:
+  type: object
+
+  properties:
+
+    categories:
+      type: array
+
+      items:
+        $ref: '#/components/schemas/CategoryResponse'
+
