@@ -8,4 +8,6 @@ var (
 	ErrNameIsTooLong       = errors.New("product name is too long")
 	ErrInvalidPrice        = errors.New("price must be greater than zero")
 	ErrUnitIsRequired      = errors.New("unit is required")
+	ErrProductNotFound     = errors.New("product not found")
+	ErrNothingToUpdate     = errors.New("nothing to update")
 )
