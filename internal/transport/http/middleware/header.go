@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/leyl1ne/ProductService/internal/model/auth"
 	"github.com/leyl1ne/ProductService/internal/transport/http/response"
 	"github.com/leyl1ne/ProductService/pkg/logger"
 )
@@ -22,26 +24,27 @@ func ExtractHeadersMiddleware(log logger.Logger) gin.HandlerFunc {
 		requestID := c.GetHeader(HeaderRequestID)
 		SetRequestID(c, requestID)
 
-		userID := c.GetHeader(HeaderUserID)
-		if userID == "" {
-			// Если нет X-User-ID, значит запрос не прошёл через gateway
-			// или gateway не проставил заголовок — это ошибка конфигурации
-			log.Warn("missing X-User-ID header, request may bypass gateway")
-			response.WriteErrorAbort(c, http.StatusBadRequest, "missing required gateway header")
+		userID, err := uuid.Parse(c.GetHeader(HeaderUserID))
+		if err != nil {
+			log.Error("ivalid user id in header", logger.Err(err))
+			response.WriteErrorAbort(c, http.StatusBadRequest, "invalid user id")
 			return
 		}
+		companyUUID, _ := uuid.Parse(c.GetHeader(HeaderCompanyID))
+		userRole := auth.Role(c.GetHeader(HeaderUserRole))
 
-		user := UserContext{
-			UserID:    userID,
-			UserRole:  c.GetHeader(HeaderUserRole),
-			CompanyID: c.GetHeader(HeaderCompanyID),
+		user := auth.User{
+			ID:        userID,
+			Role:      userRole,
+			CompanyID: companyUUID,
 		}
 
-		SetUser(c, user)
+		ctx := auth.ContextWithUser(c.Request.Context(), user)
+		c.Request = c.Request.WithContext(ctx)
 
 		log.Debug("extracted user context from gateway headers",
-			logger.Field{Key: "user_id", Value: user.UserID},
-			logger.Field{Key: "role", Value: user.UserRole},
+			logger.Field{Key: "user_id", Value: user.ID},
+			logger.Field{Key: "role", Value: user.Role},
 			logger.Field{Key: "request_id", Value: requestID},
 		)
 
