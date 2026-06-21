@@ -24,7 +24,6 @@ type Repository interface {
 // --- Input types ---
 
 type CreateProductInput struct {
-	CompanyID  uuid.UUID
 	CategoryID *uuid.UUID
 	Name       string
 	Desc       string

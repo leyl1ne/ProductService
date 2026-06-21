@@ -40,7 +40,7 @@ func (s *Service) CreateProduct(ctx context.Context, input CreateProductInput) (
 
 	product := productmodel.Product{
 		ID:          uuid.New(),
-		CompanyID:   input.CompanyID,
+		CompanyID:   user.CompanyID,
 		CategoryID:  input.CategoryID,
 		Name:        input.Name,
 		Description: input.Desc,
