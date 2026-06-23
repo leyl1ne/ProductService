@@ -190,22 +190,24 @@ func (_m *Repository) ListCategories(ctx context.Context) ([]category.Category, 
 }
 
 // ListProducts provides a mock function with given fields: ctx, filter, page, limit
-func (_m *Repository) ListProducts(ctx context.Context, filter serviceproduct.ProductFilter, page int, limit int) (serviceproduct.ProductListResult, error) {
+func (_m *Repository) ListProducts(ctx context.Context, filter serviceproduct.ProductFilter, page int, limit int) (*serviceproduct.ProductListResult, error) {
 	ret := _m.Called(ctx, filter, page, limit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListProducts")
 	}
 
-	var r0 serviceproduct.ProductListResult
+	var r0 *serviceproduct.ProductListResult
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, serviceproduct.ProductFilter, int, int) (serviceproduct.ProductListResult, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, serviceproduct.ProductFilter, int, int) (*serviceproduct.ProductListResult, error)); ok {
 		return rf(ctx, filter, page, limit)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, serviceproduct.ProductFilter, int, int) serviceproduct.ProductListResult); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, serviceproduct.ProductFilter, int, int) *serviceproduct.ProductListResult); ok {
 		r0 = rf(ctx, filter, page, limit)
 	} else {
-		r0 = ret.Get(0).(serviceproduct.ProductListResult)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*serviceproduct.ProductListResult)
+		}
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, serviceproduct.ProductFilter, int, int) error); ok {

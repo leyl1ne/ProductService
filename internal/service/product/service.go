@@ -31,6 +31,7 @@ func (s *Service) CreateProduct(ctx context.Context, input CreateProductInput) (
 		return nil, fmt.Errorf("%s: %w", op, service.ErrForbidden)
 	}
 
+	//TODO: при создании нужно еще проверять наличие компании.
 	if !auth.CanCreateProduct(user) {
 		return nil, fmt.Errorf("%s: %w", op, service.ErrForbidden)
 	}

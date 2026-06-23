@@ -13,7 +13,7 @@ import (
 type Repository interface {
 	CreateProduct(ctx context.Context, product productmodel.Product) (*productmodel.Product, error)
 	GetProductByID(ctx context.Context, id uuid.UUID) (*productmodel.Product, error)
-	ListProducts(ctx context.Context, filter ProductFilter, page, limit int) (ProductListResult, error)
+	ListProducts(ctx context.Context, filter ProductFilter, page, limit int) (*ProductListResult, error)
 	UpdateProduct(ctx context.Context, id uuid.UUID, params UpdateProductParams) (*productmodel.Product, error)
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
 	GetProductAvailability(ctx context.Context, productID uuid.UUID) ([]AvailableBatch, error)

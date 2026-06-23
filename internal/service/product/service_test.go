@@ -367,7 +367,7 @@ func Test_Service_ListProducts(t *testing.T) {
 	now := time.Now()
 
 	type mockSetup struct {
-		listProducts      productservice.ProductListResult
+		listProducts      *productservice.ProductListResult
 		listProductsErr   error
 		listCategories    []categorymodel.Category
 		listCategoriesErr error
@@ -387,7 +387,7 @@ func Test_Service_ListProducts(t *testing.T) {
 			page:   1,
 			limit:  20,
 			mockSetup: mockSetup{
-				listProducts: productservice.ProductListResult{
+				listProducts: &productservice.ProductListResult{
 					Products: []productmodel.Product{
 						{
 							ID:         uuid.New(),
@@ -421,7 +421,7 @@ func Test_Service_ListProducts(t *testing.T) {
 			page:   1,
 			limit:  20,
 			mockSetup: mockSetup{
-				listProducts: productservice.ProductListResult{
+				listProducts: &productservice.ProductListResult{
 					Products: []productmodel.Product{},
 					Total:    0,
 				},
@@ -445,7 +445,7 @@ func Test_Service_ListProducts(t *testing.T) {
 			page:   1,
 			limit:  20,
 			mockSetup: mockSetup{
-				listProducts: productservice.ProductListResult{
+				listProducts: &productservice.ProductListResult{
 					Products: []productmodel.Product{},
 					Total:    0,
 				},
