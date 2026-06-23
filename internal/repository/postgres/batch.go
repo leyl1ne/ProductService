@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +12,7 @@ import (
 
 	batchmodel "github.com/leyl1ne/ProductService/internal/model/batch"
 	productmodel "github.com/leyl1ne/ProductService/internal/model/product"
+	batchservice "github.com/leyl1ne/ProductService/internal/service/batch"
 )
 
 func (r *Repository) CreateBatch(ctx context.Context, batch batchmodel.ProductBatch) (*batchmodel.ProductBatch, error) {
@@ -132,13 +132,7 @@ func (r *Repository) ListBatchesByProduct(ctx context.Context, productID uuid.UU
 	return batches, nil
 }
 
-type UpdateBatchParams struct {
-	ProductionDate *time.Time
-	ExpirationDate *time.Time
-	BatchNumber    *string
-}
-
-func (r *Repository) UpdateBatch(ctx context.Context, id uuid.UUID, params UpdateBatchParams) (*batchmodel.ProductBatch, error) {
+func (r *Repository) UpdateBatch(ctx context.Context, id uuid.UUID, params batchservice.UpdateBatchParams) (*batchmodel.ProductBatch, error) {
 	const op = "repository.postgres.UpdateBatch"
 
 	var setClauses []string

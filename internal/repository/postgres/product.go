@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +12,7 @@ import (
 
 	categorymodel "github.com/leyl1ne/ProductService/internal/model/category"
 	productmodel "github.com/leyl1ne/ProductService/internal/model/product"
+	productservice "github.com/leyl1ne/ProductService/internal/service/product"
 )
 
 func (r *Repository) CreateProduct(ctx context.Context, product productmodel.Product) (*productmodel.Product, error) {
@@ -94,19 +94,7 @@ func (r *Repository) GetProductByID(ctx context.Context, id uuid.UUID) (*product
 	return &p, nil
 }
 
-type ProductFilter struct {
-	CategoryID *uuid.UUID
-	CompanyID  *uuid.UUID
-	MinPrice   *float64
-	MaxPrice   *float64
-}
-
-type ProductListResult struct {
-	Products []productmodel.Product
-	Total    int
-}
-
-func (r *Repository) ListProducts(ctx context.Context, filter ProductFilter, page, limit int) (*ProductListResult, error) {
+func (r *Repository) ListProducts(ctx context.Context, filter productservice.ProductFilter, page, limit int) (*productservice.ProductListResult, error) {
 	const op = "repository.postgres.ListProducts"
 
 	var whereClauses []string
@@ -200,22 +188,13 @@ func (r *Repository) ListProducts(ctx context.Context, filter ProductFilter, pag
 		return nil, fmt.Errorf("%s: rows next: %w", op, err)
 	}
 
-	return &ProductListResult{
+	return &productservice.ProductListResult{
 		Products: products,
 		Total:    total,
 	}, nil
 }
 
-type UpdateProductParams struct {
-	Name        *string
-	Description *string
-	Price       *float64
-	Unit        *string
-	CategoryID  *uuid.UUID
-	IsActive    *bool
-}
-
-func (r *Repository) UpdateProduct(ctx context.Context, id uuid.UUID, params UpdateProductParams) (*productmodel.Product, error) {
+func (r *Repository) UpdateProduct(ctx context.Context, id uuid.UUID, params productservice.UpdateProductParams) (*productmodel.Product, error) {
 	const op = "repository.postgres.UpdateProduct"
 
 	var setClauses []string
@@ -322,13 +301,7 @@ func (r *Repository) DeleteProduct(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-type AvailableBatch struct {
-	BatchID           uuid.UUID
-	AvailableQuantity float64
-	ExpirationDate    *time.Time
-}
-
-func (r *Repository) GetProductAvailability(ctx context.Context, productID uuid.UUID) ([]AvailableBatch, error) {
+func (r *Repository) GetProductAvailability(ctx context.Context, productID uuid.UUID) ([]productservice.AvailableBatch, error) {
 	const op = "repository.postgres.GetProductAvailability"
 
 	const query = `
@@ -344,9 +317,9 @@ func (r *Repository) GetProductAvailability(ctx context.Context, productID uuid.
 	}
 	defer rows.Close()
 
-	batches := make([]AvailableBatch, 0)
+	batches := make([]productservice.AvailableBatch, 0)
 	for rows.Next() {
-		var b AvailableBatch
+		var b productservice.AvailableBatch
 		if err := rows.Scan(&b.BatchID, &b.AvailableQuantity, &b.ExpirationDate); err != nil {
 			return nil, fmt.Errorf("%s: scan: %w", op, err)
 		}
