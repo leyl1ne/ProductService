@@ -7,34 +7,9 @@ import (
 
 type contextKey string
 
-type UserContext struct {
-	UserID    string
-	UserRole  string
-	CompanyID string
-}
-
 const (
-	UserContextKey      contextKey = "user"
 	RequestIDContextKey contextKey = "request_id"
 )
-
-func GetUser(c *gin.Context) (UserContext, bool) {
-	userContext, exists := c.Get(UserContextKey)
-	if !exists {
-		return UserContext{}, false
-	}
-	user, ok := userContext.(UserContext)
-	if !ok {
-		return UserContext{}, false
-	}
-
-	return user, true
-
-}
-
-func SetUser(c *gin.Context, user UserContext) {
-	c.Set(UserContextKey, user)
-}
 
 func SetRequestID(c *gin.Context, requestID string) {
 	if requestID == "" {
