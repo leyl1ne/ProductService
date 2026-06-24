@@ -1,666 +1,950 @@
 openapi: 3.0.3
 
 info:
-title: Product Service API
-version: 1.0.0
-description: Product catalog and inventory batches service.
+  title: Product Service API
+  version: 1.0.0
+  description: |
+    Product catalog and inventory batches service.
+
+    All routes are protected by HTTP Basic Auth at the gateway/service boundary
+    (`ServiceBasicAuthMiddleware`). After Basic Auth passes, the gateway also
+    injects the following headers which are consumed by
+    `ExtractHeadersMiddleware` to populate `auth.User` in the request context:
+
+      - `X-User-ID`      (UUID, required)
+      - `X-User-Role`    (one of `admin`, `seller`, `buyer`)
+      - `X-Company-ID`   (UUID, optional — platform admins may have none)
+      - `X-Request-ID`   (string, optional — auto-generated if missing)
+
+    Authorization rules are enforced at the service layer via the policy pattern
+    and surface as `403 forbidden` on protected endpoints.
 
 servers:
-
-* url: /v1
+  - url: 
+    description: API version 1
 
 tags:
+  - name: Products
+    description: Product catalog management
+  - name: Batches
+    description: Inventory batches tied to products
+  - name: Categories
+    description: Product categories
 
-* name: Products
-* name: Batches
-* name: Categories
+security:
+  - basicAuth: []
 
 paths:
+  /products:
+    get:
+      tags: [Products]
+      summary: List products
+      description: |
+        Returns a paginated list of products with optional filters.
+        Available to all authenticated users.
+      operationId: listProducts
+      parameters:
+        - $ref: '#/components/parameters/CategoryIDQuery'
+        - $ref: '#/components/parameters/CompanyIDQuery'
+        - name: min_price
+          in: query
+          description: Minimum price (inclusive)
+          schema:
+            type: number
+            format: float
+            minimum: 0
+        - name: max_price
+          in: query
+          description: Maximum price (inclusive)
+          schema:
+            type: number
+            format: float
+            minimum: 0
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Products list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
-/products:
+    post:
+      tags: [Products]
+      summary: Create product
+      description: Creates a new product. SELLER or ADMIN only.
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
+  /products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ProductID'
 
-get:
-  tags:
-    - Products
-  summary: Get products list
+    get:
+      tags: [Products]
+      summary: Get product by id
+      description: Returns a product by ID. Available to all authenticated users.
+      operationId: getProductById
+      responses:
+        '200':
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags: [Products]
+      summary: Update product
+      description: |
+        Partially updates a product. Only the owner of the product's company
+        or an ADMIN may call this. All fields are optional — only supplied
+        fields are updated.
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Products]
+      summary: Delete product
+      description: Deletes a product. Owner of the product's company or ADMIN only.
+      operationId: deleteProduct
+      responses:
+        '204':
+          description: Product deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /products/{id}/availability:
+    parameters:
+      - $ref: '#/components/parameters/ProductID'
+    get:
+      tags: [Products]
+      summary: Get product availability
+      description: |
+        Returns all batches of the product that still have available stock,
+        ordered by expiration date (FIFO). Available to all authenticated users.
+      operationId: getProductAvailability
+      responses:
+        '200':
+          description: Product availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductAvailabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /products/{id}/batches:
+    parameters:
+      - $ref: '#/components/parameters/ProductID'
+
+    get:
+      tags: [Batches]
+      summary: List batches by product
+      description: |
+        Returns all batches for a product.
+        Owner of the product's company or ADMIN only.
+      operationId: listBatchesByProduct
+      responses:
+        '200':
+          description: Batches list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Batches]
+      summary: Create batch
+      description: |
+        Creates a new batch for a product.
+        SELLER or ADMIN (owner of product's company) only.
+      operationId: createBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBatchRequest'
+      responses:
+        '201':
+          description: Batch created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /batches/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BatchID'
+
+    get:
+      tags: [Batches]
+      summary: Get batch by id
+      description: Returns a batch by ID. Owner of product's company or ADMIN only.
+      operationId: getBatchById
+      responses:
+        '200':
+          description: Batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags: [Batches]
+      summary: Update batch
+      description: |
+        Partially updates a batch. Only `production_date`, `expiration_date`
+        and `batch_number` may be changed — quantity fields are immutable
+        from this endpoint. Owner of product's company or ADMIN only.
+      operationId: updateBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBatchRequest'
+      responses:
+        '200':
+          description: Updated batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Batches]
+      summary: Delete batch
+      description: Deletes a batch. Owner of product's company or ADMIN only.
+      operationId: deleteBatch
+      responses:
+        '204':
+          description: Batch deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      description: Returns all categories. Available to all authenticated users.
+      operationId: listCategories
+      responses:
+        '200':
+          description: Categories list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Categories]
+      summary: Create category
+      description: Creates a new category. ADMIN only.
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryID'
+
+    patch:
+      tags: [Categories]
+      summary: Update category name
+      description: Changes the name of a category. ADMIN only.
+      operationId: updateCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Categories]
+      summary: Delete category
+      description: |
+        Deletes a category. ADMIN only. Returns `409 conflict` if the category
+        is still referenced by any product.
+      operationId: deleteCategory
+      responses:
+        '204':
+          description: Category deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: |
+        HTTP Basic Auth. Applied to every route by `ServiceBasicAuthMiddleware`.
+        In production the gateway terminates this auth and then injects
+        `X-User-ID` / `X-User-Role` / `X-Company-ID` headers which are parsed
+        by `ExtractHeadersMiddleware`.
+
   parameters:
-
-    - name: category_id
-      in: query
+    ProductID:
+      name: id
+      in: path
+      required: true
+      description: Product ID (UUID)
       schema:
         type: string
         format: uuid
 
-    - name: company_id
-      in: query
+    BatchID:
+      name: id
+      in: path
+      required: true
+      description: Batch ID (UUID)
       schema:
         type: string
         format: uuid
 
-    - name: min_price
-      in: query
+    CategoryID:
+      name: id
+      in: path
+      required: true
+      description: Category ID (UUID)
       schema:
-        type: number
+        type: string
+        format: uuid
 
-    - name: max_price
+    CategoryIDQuery:
+      name: category_id
       in: query
+      description: Filter by category UUID
       schema:
-        type: number
+        type: string
+        format: uuid
 
-    - name: page
+    CompanyIDQuery:
+      name: company_id
       in: query
+      description: Filter by company UUID
+      schema:
+        type: string
+        format: uuid
+
+    PageQuery:
+      name: page
+      in: query
+      description: Page number (1-based)
       schema:
         type: integer
+        minimum: 1
         default: 1
 
-    - name: limit
+    LimitQuery:
+      name: limit
       in: query
+      description: Items per page
       schema:
         type: integer
+        minimum: 1
+        maximum: 100
         default: 20
 
   responses:
-    '200':
-      description: Products list
+    BadRequest:
+      description: Malformed request (invalid UUID, bad JSON, etc.)
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ProductListResponse'
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: invalid product id
 
-post:
-  tags:
-    - Products
-  summary: Create product
-  security:
-    - bearerAuth: []
-
-  requestBody:
-    required: true
-    content:
-      application/json:
-        schema:
-          $ref: '#/components/schemas/CreateProductRequest'
-
-  responses:
-    '201':
-      description: Product created
+    Unauthorized:
+      description: Missing or invalid authentication.
       content:
         application/json:
           schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: unauthorized
+
+    Forbidden:
+      description: Authenticated user lacks the required role or company ownership.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: forbidden
+
+    NotFound:
+      description: Referenced resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: product not found
+
+    Conflict:
+      description: Request conflicts with current state (e.g. duplicate name).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: category already exists
+
+    ValidationError:
+      description: |
+        Request body failed `binding` validation. The `fields` map lists every
+        invalid field with a human-readable reason.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error:
+              message: validation failed
+            fields:
+              name: field is required
+              price: invalid value
+
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: internal server error
+
+  schemas:
+    ErrorResponse:
+      type: object
+      description: Standard error envelope returned by all error paths.
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+          required: [message]
+      required: [error]
+
+    ValidationErrorResponse:
+      type: object
+      description: |
+        Returned with HTTP 422 when the request body fails `binding` validation.
+        Lists every invalid field with a reason.
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              example: validation failed
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            name: field is required
+            price: invalid value
+      required: [error, fields]
+
+    CreateProductRequest:
+      type: object
+      required: [name, price, unit]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Organic Apples
+        description:
+          type: string
+          maxLength: 2000
+          example: Freshly picked Granny Smith
+        price:
+          type: number
+          format: float
+          exclusiveMinimum: 0
+          example: 1.99
+        unit:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: kg
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional category UUID.
+
+    UpdateProductRequest:
+      type: object
+      description: |
+        Partial update — every field is optional. Only supplied fields are
+        persisted. To clear a nullable field, send `null` (where supported).
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          nullable: true
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        price:
+          type: number
+          format: float
+          exclusiveMinimum: 0
+          nullable: true
+        unit:
+          type: string
+          minLength: 1
+          maxLength: 50
+          nullable: true
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Pass a UUID to set, or `null` to detach.
+        is_active:
+          type: boolean
+          nullable: true
+          description: Soft-disable a product without deleting it.
+
+    ProductResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        category:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CategoryShortResponse'
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        unit:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          description: RFC3339, UTC.
+        updated_at:
+          type: string
+          format: date-time
+          description: RFC3339, UTC.
+      required:
+        - id
+        - company_id
+        - name
+        - description
+        - price
+        - unit
+        - is_active
+        - created_at
+        - updated_at
+
+    ProductListResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
             $ref: '#/components/schemas/ProductResponse'
+        total:
+          type: integer
+          description: Total number of products matching the filter.
+          example: 42
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+      required: [products, total, page, limit]
 
+    ProductAvailabilityResponse:
+      type: object
+      description: |
+        Lists all batches of a product that still have available stock,
+        ordered by expiration date (FIFO).
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        batches:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailableBatchResponse'
+      required: [product_id, batches]
 
-/products/{id}:
+    AvailableBatchResponse:
+      type: object
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+        available_quantity:
+          type: number
+          format: float
+          description: Quantity still available for reservation (`quantity_total - quantity_reserved`).
+        expiration_date:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date (`YYYY-MM-DD`), UTC. Omitted if the batch has no expiry.
+      required: [batch_id, available_quantity]
 
+    CreateBatchRequest:
+      type: object
+      required: [quantity_total]
+      properties:
+        warehouse_company_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional warehouse company UUID.
+        quantity_total:
+          type: number
+          format: float
+          exclusiveMinimum: 0
+          example: 100
+        production_date:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date (`YYYY-MM-DD`).
+        expiration_date:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date (`YYYY-MM-DD`).
+        batch_number:
+          type: string
+          maxLength: 100
+          nullable: true
+          example: BATCH-2025-001
 
-get:
-  tags:
-    - Products
-  summary: Get product by id
+    UpdateBatchRequest:
+      type: object
+      description: Partial update — every field is optional.
+      properties:
+        production_date:
+          type: string
+          format: date
+          nullable: true
+        expiration_date:
+          type: string
+          format: date
+          nullable: true
+        batch_number:
+          type: string
+          maxLength: 100
+          nullable: true
 
-  parameters:
-    - $ref: '#/components/parameters/ProductId'
+    BatchResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid?
+        product_id:
+          type: string
+          format: uuid
+        warehouse_company_id:
+          type: string
+          format: uuid
+          nullable: true
+        quantity_total:
+          type: number
+          format: float
+        quantity_reserved:
+          type: number
+          format: float
+        available_quantity:
+          type: number
+          format: float
+          readOnly: true
+          description: Derived = `quantity_total - quantity_reserved`.
+        batch_number:
+          type: string
+        production_date:
+          type: string
+          format: date
+          nullable: true
+        expiration_date:
+          type: string
+          format: date
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          description: RFC3339, UTC.
+      required:
+        - id
+        - product_id
+        - quantity_total
+        - quantity_reserved
+        - available_quantity
+        - batch_number
+        - created_at
 
-  responses:
-    '200':
-      description: Product
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ProductResponse'
-
-patch:
-  tags:
-    - Products
-  summary: Update product
-  security:
-    - bearerAuth: []
-
-  parameters:
-    - $ref: '#/components/parameters/ProductId'
-
-  requestBody:
-    required: true
-    content:
-      application/json:
-        schema:
-          $ref: '#/components/schemas/UpdateProductRequest'
-
-  responses:
-    '200':
-      description: Updated product
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ProductResponse'
-
-delete:
-  tags:
-    - Products
-  summary: Delete product
-  security:
-    - bearerAuth: []
-
-  parameters:
-    - $ref: '#/components/parameters/ProductId'
-
-  responses:
-    '204':
-      description: Product deleted
-
-
-/products/{id}/batches:
-
-
-get:
-  tags:
-    - Batches
-  summary: Get product batches
-  security:
-    - bearerAuth: []
-
-  parameters:
-    - $ref: '#/components/parameters/ProductId'
-
-  responses:
-    '200':
-      description: Product batches
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/BatchListResponse'
-
-post:
-  tags:
-    - Batches
-  summary: Create batch
-  security:
-    - bearerAuth: []
-
-  parameters:
-    - $ref: '#/components/parameters/ProductId'
-
-  requestBody:
-    required: true
-    content:
-      application/json:
-        schema:
-          $ref: '#/components/schemas/CreateBatchRequest'
-
-  responses:
-    '201':
-      description: Batch created
-      content:
-        application/json:
-          schema:
+    BatchListResponse:
+      type: object
+      properties:
+        batches:
+          type: array
+          items:
             $ref: '#/components/schemas/BatchResponse'
-
-/products/{id}/availability:
-
-  get:
-    tags:
-      - Products
-
-    summary: Get product availability
-
-    parameters:
-      - $ref: '#/components/parameters/ProductId'
-
-    responses:
-      '200':
-        description: Product availability
-
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProductAvailabilityResponse'
-
-/batches/{id}:
-
-
-  get:
-    tags:
-      - Batches
-    summary: Get batch by id
-    security:
-      - bearerAuth: []
-
-    parameters:
-      - $ref: '#/components/parameters/BatchId'
-
-    responses:
-      '200':
-        description: Batch
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BatchResponse'
-
-  patch:
-    tags:
-      - Batches
-    summary: Update batch
-    security:
-      - bearerAuth: []
-
-    parameters:
-      - $ref: '#/components/parameters/BatchId'
-
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/UpdateBatchRequest'
-
-    responses:
-      '200':
-        description: Updated batch
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BatchResponse'
-
-  delete:
-    tags:
-      - Batches
-    summary: Delete batch
-    security:
-      - bearerAuth: []
-
-    parameters:
-      - $ref: '#/components/parameters/BatchId'
-
-    responses:
-      '204':
-        description: Batch deleted
-
-
-/categories:
-
-
-  get:
-    tags:
-      - Categories
-    summary: Get categories
-
-    responses:
-      '200':
-        description: Categories list
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CategoryListResponse'
-
-  post:
-    tags:
-      - Categories
-    summary: Create category
-    security:
-      - bearerAuth: []
-
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CreateCategoryRequest'
-
-    responses:
-      '201':
-        description: Category created
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CategoryResponse'
-
-/categories/{id}:
-
-  patch:
-    tags:
-      - Categories
-    summary: change name category
-    security:
-      - bearerAuth: []
-
-    parameters:
-    - $ref: '#/components/parameters/CategoryId'
-    
-    requestBody:
-      required: true
-
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/UpdateCategoryRequest'
-
-    responses:
-      '200':
-        description: Category updated
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CategoryResponse'
-
-  delete:
-    tags: 
-      - Categories
-    summary: delete category
-    security:
-      - bearerAuth: []
-
-    parameters:
-    - $ref: '#/components/parameters/CategoryId'
-    
-    responses:
-      '204':
-        description: category deleted
-
-components:
-
-  securitySchemes:
-
-
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-
-parameters:
-
-
-  ProductId:
-    name: id
-    in: path
-    required: true
-    schema:
-      type: string
-      format: uuid
-
-  BatchId:
-    name: id
-    in: path
-    required: true
-    schema:
-      type: string
-      format: uuid
-
-  CategoryId:
-    name: id
-    in: path
-    required: true
-    schema:
-      type: string
-      format: uuid
-
-
-schemas:
-
-  CreateProductRequest:
-    type: object
-    required:
-      - name
-      - price
-      - unit
-
-    properties:
-
-      name:
-        type: string
-
-      description:
-        type: string
-
-      price:
-        type: number
-
-      unit:
-        type: string
-
-      category_id:
-        type: string
-        format: uuid
-
-  UpdateProductRequest:
-    type: object
-
-    properties:
-
-      name:
-        type: string
-
-      description:
-        type: string
-
-      price:
-        type: number
-
-      unit:
-        type: string
-
-      category_id:
-        type: string
-        format: uuid
-
-      is_active:
-        type: boolean
-
-  ProductResponse:
-    type: object
-
-    properties:
-
-      id:
-        type: string
-        format: uuid
-
-      company_id:
-        type: string
-        format: uuid
-
-      category:
-        $ref: '#/components/schemas/CategoryShortResponse'
-
-      name:
-        type: string
-
-      description:
-        type: string
-
-      price:
-        type: number
-
-      unit:
-        type: string
-
-      is_active:
-        type: boolean
-
-      created_at:
-        type: string
-        format: date-time
-
-      updated_at:
-        type: string
-        format: date-time
-
-  ProductAvailabilityResponse:
-    type: object
-
-    properties:
-
-      product_id:
-        type: string
-        format: uuid
-
-      batches:
-        type: array
-
-        items:
-          $ref: '#/components/schemas/AvailableBatchResponse'
-
-  AvailableBatchResponse:
-    type: object
-
-    properties:
-
-      available_quantity:
-        type: number
-
-      expiration_date:
-        type: string
-        format: date
-        
-  ProductListResponse:
-    type: object
-
-    properties:
-
-      products:
-        type: array
-
-        items:
-          $ref: '#/components/schemas/ProductResponse'
-
-  CreateBatchRequest:
-    type: object
-
-    required:
-      - quantity_total
-
-    properties:
-
-      warehouse_company_id:
-        type: string
-        format: uuid
-
-      quantity_total:
-        type: number
-
-      production_date:
-        type: string
-        format: date
-
-      expiration_date:
-        type: string
-        format: date
-
-      batch_number:
-        type: string
-
-  UpdateBatchRequest:
-    type: object
-
-    properties:
-
-      production_date:
-        type: string
-        format: date
-
-      expiration_date:
-        type: string
-        format: date
-
-      batch_number:
-        type: string
-
-  BatchResponse:
-    type: object
-
-    properties:
-
-      id:
-        type: string
-        format: uuid
-
-      product_id:
-        type: string
-        format: uuid
-
-      warehouse_company_id:
-        type: string
-        format: uuid
-
-      quantity_total:
-        type: number
-
-      quantity_reserved:
-        type: number
-
-      available_quantity:
-        type: number
-        readOnly: true
-
-      batch_number:
-        type: string
-
-      production_date:
-        type: string
-        format: date
-
-      expiration_date:
-        type: string
-        format: date
-
-      created_at:
-        type: string
-        format: date-time
-
-  CreateCategoryRequest:
-    type: object
-
-    required:
-      - name
-
-    properties:
-
-      name:
-        type: string
-
-  CategoryResponse:
-    type: object
-
-    properties:
-
-      id:
-        type: string
-        format: uuid
-
-      name:
-        type: string
-
-  CategoryListResponse:
-    type: object
-
-    properties:
-
-      categories:
-        type: array
-
-        items:
-          $ref: '#/components/schemas/CategoryResponse'
-
-  CategoryShortResponse:
-    type: object
-
-    properties:
-
-      id:
-        type: string
-        format: uuid
-
-      name:
-        type: string
-
-  UpdateCategoryRequest:
-    type: object
-
-    required:
-      - name
-
-    properties:
-
-      name:
-        type: string
+      required: [batches]
+
+    CreateCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Dairy
+
+    UpdateCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Dairy & Eggs
+
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required: [id, name]
+
+    CategoryListResponse:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
+      required: [categories]
+
+    CategoryShortResponse:
+      type: object
+      description: Minimal category info embedded inside `ProductResponse`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required: [id, name]

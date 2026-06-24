@@ -28,6 +28,16 @@ func NewDocsHandler() (*DocsHandler, error) {
 	}, nil
 }
 
+func (h *DocsHandler) Spec() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Data(
+			http.StatusOK,
+			"application/yaml",
+			h.spec,
+		)
+	}
+}
+
 func (h *DocsHandler) UI() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Data(
